@@ -1,22 +1,163 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+model aluno {
+  usuario_id Int     @id
+  matricula  String  @unique @db.VarChar(30)
+  escola_id  Int
+  cidade_id  Int
+  destino    String? @db.VarChar(150)
+  cidade     cidade  @relation(fields: [cidade_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  escola     escola  @relation(fields: [escola_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuario    usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique 
-  password  String
-  createdAt DateTime @default(now())
+model cidade {
+  id     Int      @id @default(autoincrement())
+  nome   String   @db.VarChar(100)
+  uf     String   @db.Char(2)
+  aluno  aluno[]
+  escola escola[]
+  rota   rota[]
+
+  @@unique([nome, uf])
+}
+
+model escola {
+  id          Int           @id @default(autoincrement())
+  nome        String        @db.VarChar(150)
+  endereco    String?       @db.VarChar(255)
+  cidade_id   Int
+  aluno       aluno[]
+  cidade      cidade        @relation(fields: [cidade_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rota_escola rota_escola[]
+
+  @@unique([nome, cidade_id])
+  @@index([cidade_id], map: "idx_escola_cidade")
+}
+
+model horario {
+  id               Int         @id @default(autoincrement())
+  onibus_id        Int
+  rota_id          Int
+  saida            DateTime    @db.Time(6)
+  chegada_prevista DateTime    @db.Time(6)
+  dias_semana      Int[]       @default([1, 2, 3, 4, 5]) @db.SmallInt
+  onibus_rota      onibus_rota @relation(fields: [onibus_id, rota_id], references: [onibus_id, rota_id], onDelete: Cascade, onUpdate: NoAction)
+  viagem           viagem[]
+
+  @@index([rota_id], map: "idx_horario_rota")
+}
+
+model motorista {
+  usuario_id    Int          @id
+  identificacao String       @unique @db.VarChar(30)
+  usuario       usuario      @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ocorrencia    ocorrencia[]
+  onibus        onibus[]
+  viagem        viagem[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ocorrencia {
+  id                    Int       @id @default(autoincrement())
+  tipo                  String    @db.VarChar(30)
+  descricao             String?
+  local                 String?   @db.VarChar(255)
+  onibus_id             Int
+  rota_id               Int
+  motorista_id          Int
+  status                String    @default("em_andamento") @db.VarChar(15)
+  previsao_normalizacao DateTime? @db.Timestamptz(6)
+  criada_em             DateTime  @default(now()) @db.Timestamptz(6)
+  resolvida_em          DateTime? @db.Timestamptz(6)
+  motorista             motorista @relation(fields: [motorista_id], references: [usuario_id], onDelete: NoAction, onUpdate: NoAction)
+  onibus                onibus    @relation(fields: [onibus_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rota                  rota      @relation(fields: [rota_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([rota_id], map: "idx_ocorrencia_ativa", where: raw("((status)::text = 'em_andamento'::text)"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model onibus {
+  id           Int           @id @default(autoincrement())
+  numero       String        @unique @db.VarChar(20)
+  placa        String        @unique @db.VarChar(10)
+  capacidade   Int
+  status       String        @default("ativo") @db.VarChar(15)
+  motorista_id Int?
+  ocorrencia   ocorrencia[]
+  motorista    motorista?    @relation(fields: [motorista_id], references: [usuario_id], onUpdate: NoAction)
+  onibus_rota  onibus_rota[]
+}
+
+model onibus_rota {
+  onibus_id Int
+  rota_id   Int
+  horario   horario[]
+  onibus    onibus    @relation(fields: [onibus_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rota      rota      @relation(fields: [rota_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([onibus_id, rota_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rota {
+  id                 Int           @id @default(autoincrement())
+  nome               String        @db.VarChar(100)
+  cidade_id          Int
+  origem             String        @db.VarChar(150)
+  destino            String        @db.VarChar(150)
+  distancia_km       Decimal?      @db.Decimal(6, 1)
+  tempo_estimado_min Int?
+  ocorrencia         ocorrencia[]
+  onibus_rota        onibus_rota[]
+  cidade             cidade        @relation(fields: [cidade_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rota_escola        rota_escola[]
+
+  @@index([cidade_id], map: "idx_rota_cidade")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rota_escola {
+  rota_id   Int
+  escola_id Int
+  ordem     Int
+  escola    escola @relation(fields: [escola_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rota      rota   @relation(fields: [rota_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([rota_id, escola_id])
+  @@unique([rota_id, ordem])
+  @@index([escola_id], map: "idx_rota_escola_escola")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model usuario {
+  id         Int        @id @default(autoincrement())
+  nome       String     @db.VarChar(150)
+  email      String     @unique @db.VarChar(150)
+  senha_hash String     @db.VarChar(255)
+  telefone   String?    @db.VarChar(20)
+  perfil     String     @db.VarChar(10)
+  ativo      Boolean    @default(true)
+  criado_em  DateTime   @default(now()) @db.Timestamptz(6)
+  aluno      aluno?
+  motorista  motorista?
+}
+
+model viagem {
+  id            Int       @id @default(autoincrement())
+  horario_id    Int
+  motorista_id  Int
+  iniciada_em   DateTime  @default(now()) @db.Timestamptz(6)
+  finalizada_em DateTime? @db.Timestamptz(6)
+  horario       horario   @relation(fields: [horario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  motorista     motorista @relation(fields: [motorista_id], references: [usuario_id], onDelete: NoAction, onUpdate: NoAction)
 }
