@@ -7,9 +7,13 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
     "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma genrate",
+    "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "build": "tsc",
+"start": "node dist/server.js",
+"postinstall": "prisma generate"
+    
   },
   "keywords": [],
   "author": "",
