@@ -6,13 +6,14 @@ import { prisma } from "../src/lib/prisma.js";
 async function main() {
   const email = process.env.ADMIN_EMAIL!;
   const password = process.env.ADMIN_PASSWORD!;
+  if (!email || !password) throw new Error("Configure ADMIN_EMAIL e ADMIN_PASSWORD antes de executar o seed.");
 
   const passwordHash = await bcrypt.hash(password, 10);
 
  const admin = await prisma.usuario.upsert({
-  where: { email },
-  update: { senha_hash: passwordHash },
-  create: { nome: "Admin", email, senha_hash: passwordHash, perfil: "admin" },
+  where: { email: email.trim().toLowerCase() },
+  update: { senha_hash: passwordHash, perfil: "admin", ativo: true },
+  create: { nome: "Admin", email: email.trim().toLowerCase(), senha_hash: passwordHash, perfil: "admin" },
 });
 
   console.log(`Admin user ready: ${admin.email}`);
